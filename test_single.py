@@ -16,6 +16,7 @@ import dlib
 import torchvision.transforms as transforms
 import shutil
 
+forehead_idx = [0] + list(range(17, 27)) + [16]
 '''
 def forehead_line(img, kpt):
     h, w = img.shape[:2]
@@ -81,8 +82,11 @@ if __name__ == '__main__':
         if len(face_rect) == 0:
             continue
         kpt = predictor(img, face_rect[0])
+        forehead_height = int(kpt.part(51).y - kpt.part(27).y)
         for i in range(68):
             x, y = kpt.part(i).x, kpt.part(i).y
+            if i in forehead_idx:
+                y -= forehead_height
             mask[min(h-1, max(y, 0)), min(w-1, max(0, x))] = 1
         mask = convex_hull_image(mask)
         x0, x1, y0, y1 = base_dataset.bounding_rect(mask)
@@ -119,13 +123,11 @@ if __name__ == '__main__':
         img_trans = np.zeros_like(img, img.dtype)
         img_trans[y0: y1, x0: x1, :] = img_reverse
         img_mix = img*~mask[..., np.newaxis]+img_trans*mask[..., np.newaxis]
-        mask_neigh = dilation(forehead_line(mask, kpt), square((x1-x0)//15))
-        print('mask neigh shape:', mask_neigh.shape)
-        #cv2.imwrite('tmp_forehead.jpg', mask_neigh.astype(np.uint8)*255)
-        img_mix_smooth = (gaussian(img_mix, sigma=0.6, multichannel=False)*255).astype(img_mix.dtype)
-        #cv2.imwrite('tmp_smooth.jpg', img_mix_smooth)
-        img_mix = img_mix_smooth * mask_neigh[..., np.newaxis] + img_mix * (~mask_neigh)[..., np.newaxis]
+        #mask_neigh = dilation(forehead_line(mask, kpt), square((x1-x0)//15))
+        #print('mask neigh shape:', mask_neigh.shape)
+        #img_mix_smooth = (gaussian(img_mix, sigma=0.6, multichannel=False)*255).astype(img_mix.dtype)
+        #img_mix = img_mix_smooth * mask_neigh[..., np.newaxis] + img_mix * (~mask_neigh)[..., np.newaxis]
 
         #cv2.imwrite('tmp_forehead.jpg', mask_neigh)
-        cv2.imwrite(opt.results_dir+file.rsplit('/', 1)[-1].replace('_ori', ''), cv2.illuminationChange(img_mix, mask_neigh.astype(img_mix.dtype)*255))
+        cv2.imwrite(opt.results_dir+file.rsplit('/', 1)[-1].replace('_ori', ''), img_mix)# cv2.illuminationChange(img_mix, mask_neigh.astype(img_mix.dtype)*255)
         shutil.copy(file, opt.results_dir)
